@@ -1,0 +1,54 @@
+name: Сборка калькулятора
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Тесты
+        working-directory: gui_calculator
+        run: python -m unittest -v
+
+      - name: Сборка калькулятора с кнопками (Calculator.exe)
+        run: |
+          pip install pyinstaller==6.11.1
+          pyinstaller --onefile --windowed --name Calculator gui_calculator/calculator_gui.py
+
+      - name: Сборка консольного калькулятора (calculator-console.exe)
+        working-directory: calculator-app
+        run: go build -ldflags="-s -w" -o ../dist/calculator-console.exe .
+
+      - name: Сохранить файлы сборки
+        uses: actions/upload-artifact@v4
+        with:
+          name: calculator-windows
+          path: dist/*.exe
+
+      - name: Опубликовать на странице Releases
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Калькулятор v${{ github.run_number }}
+          body: |
+            Скачайте **Calculator.exe** — калькулятор с кнопками для Windows. Python не нужен.
+            Если Windows покажет предупреждение: «Подробнее» → «Выполнить в любом случае».
+          files: dist/*.exe
